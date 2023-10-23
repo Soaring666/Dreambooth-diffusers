@@ -52,7 +52,7 @@ from diffusers import (
     UNet2DConditionModel,
 )
 from diffusers.optimization import get_scheduler
-from diffusers.training_utils import compute_snr
+# from diffusers.training_utils import compute_snr
 from diffusers.utils import check_min_version, is_wandb_available
 from diffusers.utils.import_utils import is_xformers_available
 
@@ -61,7 +61,7 @@ if is_wandb_available():
     import wandb
 
 # Will error if the minimal version of diffusers is not installed. Remove at your own risks.
-check_min_version("0.22.0.dev0")
+# check_min_version("0.22.0.dev0")
 
 logger = get_logger(__name__)
 
@@ -174,7 +174,7 @@ def log_validation(
     if args.validation_images is None:
         for _ in range(args.num_validation_images):
             with torch.autocast("cuda"):
-                image = pipeline(**pipeline_args, num_inference_steps=25, generator=generator).images[0]
+                image = pipeline(**pipeline_args, num_inference_steps=50, generator=generator).images[0]
             images.append(image)
     else:
         for image in args.validation_images:
@@ -230,8 +230,7 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--pretrained_model_name_or_path",
         type=str,
-        default=None,
-        required=True,
+        default="/home/flyvideo/PCH/diffusion/stable-diffusion/stable-diffusion-v1-5",
         help="Path to pretrained model or model identifier from huggingface.co/models.",
     )
     parser.add_argument(
@@ -253,33 +252,31 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--instance_data_dir",
         type=str,
-        default=None,
-        required=True,
+        default="./data/instance_dir/sks_cat",
         help="A folder containing the training data of instance images.",
     )
     parser.add_argument(
         "--class_data_dir",
         type=str,
-        default=None,
+        default="./data/class_dir/cat",
         required=False,
         help="A folder containing the training data of class images.",
     )
     parser.add_argument(
         "--instance_prompt",
         type=str,
-        default=None,
-        required=True,
+        default="a photo of a sks cat",
         help="The prompt with identifier specifying the instance",
     )
     parser.add_argument(
         "--class_prompt",
         type=str,
-        default=None,
+        default="a photo of a cat",
         help="The prompt to specify images in the same class as provided instance images.",
     )
     parser.add_argument(
         "--with_prior_preservation",
-        default=False,
+        default=True,
         action="store_true",
         help="Flag to add prior preservation loss.",
     )
@@ -287,7 +284,7 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--num_class_images",
         type=int,
-        default=100,
+        default=250,
         help=(
             "Minimal class images for prior preservation loss. If there are not enough images already present in"
             " class_data_dir, additional images will be sampled with class_prompt."
@@ -296,7 +293,7 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--output_dir",
         type=str,
-        default="text-inversion-model",
+        default="dreambooth-output/cat",
         help="The output directory where the model predictions and checkpoints will be written.",
     )
     parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
@@ -324,7 +321,7 @@ def parse_args(input_args=None):
         help="Whether to train the text encoder. If set, the text encoder should be float32 precision.",
     )
     parser.add_argument(
-        "--train_batch_size", type=int, default=4, help="Batch size (per device) for the training dataloader."
+        "--train_batch_size", type=int, default=1, help="Batch size (per device) for the training dataloader."
     )
     parser.add_argument(
         "--sample_batch_size", type=int, default=4, help="Batch size (per device) for sampling images."
@@ -333,13 +330,13 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--max_train_steps",
         type=int,
-        default=None,
+        default=800,
         help="Total number of training steps to perform.  If provided, overrides num_train_epochs.",
     )
     parser.add_argument(
         "--checkpointing_steps",
         type=int,
-        default=500,
+        default=1000,
         help=(
             "Save a checkpoint of the training state every X updates. Checkpoints can be used for resuming training via `--resume_from_checkpoint`. "
             "In the case that the checkpoint is better than the final trained model, the checkpoint can also be used for inference."
@@ -375,7 +372,8 @@ def parse_args(input_args=None):
     )
     parser.add_argument(
         "--gradient_checkpointing",
-        action="store_true",
+        default=True,
+        # action="store_true",
         help="Whether or not to use gradient checkpointing to save memory at the expense of slower backward pass.",
     )
     parser.add_argument(
@@ -400,7 +398,7 @@ def parse_args(input_args=None):
         ),
     )
     parser.add_argument(
-        "--lr_warmup_steps", type=int, default=500, help="Number of steps for the warmup in the lr scheduler."
+        "--lr_warmup_steps", type=int, default=0, help="Number of steps for the warmup in the lr scheduler."
     )
     parser.add_argument(
         "--lr_num_cycles",
@@ -474,7 +472,7 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--validation_steps",
         type=int,
-        default=100,
+        default=300,
         help=(
             "Run validation every X steps. Validation consists of running the prompt"
             " `args.validation_prompt` multiple times: `args.num_validation_images`"
@@ -504,7 +502,7 @@ def parse_args(input_args=None):
     )
     parser.add_argument("--local_rank", type=int, default=-1, help="For distributed training: local_rank")
     parser.add_argument(
-        "--enable_xformers_memory_efficient_attention", action="store_true", help="Whether or not to use xformers."
+        "--enable_xformers_memory_efficient_attention", action="store_true", default=True, help="Whether or not to use xformers."
     )
     parser.add_argument(
         "--set_grads_to_none",
@@ -535,6 +533,7 @@ def parse_args(input_args=None):
     parser.add_argument(
         "--pre_compute_text_embeddings",
         action="store_true",
+        default=True,
         help="Whether or not to pre-compute text embeddings. If text embeddings are pre-computed, the text encoder will not be kept in memory during training and will leave more GPU memory available for training the rest of the model. This is not compatible with `--train_text_encoder`.",
     )
     parser.add_argument(
@@ -840,7 +839,7 @@ def main(args):
         set_seed(args.seed)
 
     # Generate class images if prior preservation is enabled.
-    if args.with_prior_preservation:
+    if args.with_prior_preservation:                        ##### default == true
         class_images_dir = Path(args.class_data_dir)
         if not class_images_dir.exists():
             class_images_dir.mkdir(parents=True)
@@ -962,7 +961,7 @@ def main(args):
     if not args.train_text_encoder:
         text_encoder.requires_grad_(False)
 
-    if args.enable_xformers_memory_efficient_attention:
+    if args.enable_xformers_memory_efficient_attention:         #### default == true
         if is_xformers_available():
             import xformers
 
